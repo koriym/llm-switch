@@ -1,0 +1,25 @@
+# Copy to ~/.config/llm-switch/config and edit.
+# Sourced by bin/llm-switch, so it is plain shell.
+
+# Shared port both backends listen on. Clients never need reconfiguring.
+LLM_SWITCH_PORT=8765
+
+# --- llama.cpp -----------------------------------------------------------
+LLAMA_BIN="$HOME/git/llama.cpp/build/bin/llama-server"
+LLAMA_MODEL="$HOME/gguf/Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf"
+LLAMA_CTX=16384
+LLAMA_ARGS="--reasoning off"
+LLAMA_LABEL="Qwen3.8-Flash-Next Q2_K_XL (73.4 GiB)"
+
+# --- DwarfStar (ds4) -----------------------------------------------------
+DS4_DIR="$HOME/git/ds4"
+DS4_MODEL="gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix-0731.gguf"
+DS4_CTX=32768
+DS4_KV_DIR="$HOME/.cache/ds4-kv"
+DS4_KV_MB=8192
+DS4_LABEL="DeepSeek V4 Flash Q2 (80.8 GiB)"
+
+# Wired-memory ceiling needed for `ds4 --resident`, in MiB.
+# Only relevant when the model is larger than the Metal working set macOS
+# grants by default. 88064 MiB = 86 GiB, used on a 96 GiB machine.
+DS4_WIRED_MB=88064

@@ -1,0 +1,32 @@
+{
+  "alps": {
+    "version": "1.0",
+    "title": "Book Review API",
+    "doc": {"value": "Readers post reviews of books."},
+    "descriptor": [
+      {"id": "reviewId", "title": "Review ID", "def": "https://schema.org/identifier"},
+      {"id": "bookIsbn", "title": "Book ISBN", "def": "https://schema.org/isbn"},
+      {"id": "reviewerEmail", "title": "Reviewer Email", "def": "https://schema.org/email"},
+      {"id": "headline", "title": "Headline", "def": "https://schema.org/headline"},
+      {"id": "body", "title": "Review Body", "def": "https://schema.org/Text"},
+      {"id": "rating", "title": "Rating 1-5", "def": "https://schema.org/Integer"},
+      {"id": "helpfulCount", "title": "Helpful Count", "def": "https://schema.org/Integer"},
+      {"id": "isVerifiedPurchase", "title": "Verified Purchase", "def": "https://schema.org/Boolean"},
+      {"id": "sourceUrl", "title": "Source URL", "def": "https://schema.org/URL"},
+      {"id": "createdAt", "title": "Created At", "def": "https://schema.org/DateTime"},
+
+      {"id": "Review", "title": "Review", "descriptor": [
+        {"href": "#reviewId"},
+        {"href": "#bookIsbn"},
+        {"href": "#reviewerEmail"},
+        {"href": "#headline"},
+        {"href": "#body"},
+        {"href": "#rating"},
+        {"href": "#helpfulCount"},
+        {"href": "#isVerifiedPurchase"},
+        {"href": "#sourceUrl"},
+        {"href": "#createdAt"}
+      ]}
+    ]
+  }
+}

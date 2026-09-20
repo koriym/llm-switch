@@ -1,0 +1,12 @@
+Write a single C function with this exact signature:
+
+char *str_replace_all(const char *s, const char *from, const char *to);
+
+Requirements:
+- Return a newly malloc'd NUL-terminated string where every non-overlapping occurrence of `from` in `s` is replaced by `to`, scanning left to right.
+- If `from` is the empty string, return a copy of `s` unchanged (do not insert `to` anywhere).
+- Return NULL only on allocation failure.
+- The caller frees the result. Do not modify `s`.
+- Use only <stdlib.h>, <string.h>.
+
+Output ONLY the function in a single C code block. No explanation.

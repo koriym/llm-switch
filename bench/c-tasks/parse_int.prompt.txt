@@ -1,0 +1,12 @@
+Write a single C function with this exact signature:
+
+int parse_int_strict(const char *s, long *out);
+
+Requirements:
+- Parse a base-10 integer from the whole NUL-terminated string s into *out.
+- Accept an optional leading '+' or '-', then one or more digits. Nothing else.
+- Reject: empty string, leading/trailing whitespace, sign with no digits, any non-digit character, and values outside the range of long.
+- Return 1 on success (and set *out), 0 on failure (and leave *out untouched).
+- Use only <stddef.h> and <limits.h>. Do not use strtol, atoi, sscanf, or errno.
+
+Output ONLY the function in a single C code block. No explanation.

@@ -1,0 +1,170 @@
+#!/bin/bash
+# llm-switch - run exactly one large local model at a time, always on one port.
+#
+# On a unified-memory Mac two 70-80 GiB models cannot coexist, so every start
+# stops the other backend first and verifies it is gone before loading.
+#
+# Configure with ~/.config/llm-switch/config (see config.example).
+
+set -uo pipefail
+
+CONFIG="${LLM_SWITCH_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/llm-switch/config}"
+[ -f "$CONFIG" ] && . "$CONFIG"
+
+PORT="${LLM_SWITCH_PORT:-8765}"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/llm-switch"
+LOG_DIR="$STATE_DIR/logs"
+mkdir -p "$LOG_DIR"
+
+# --- backend A: llama.cpp -----------------------------------------------
+LLAMA_BIN="${LLAMA_BIN:-$HOME/git/llama.cpp/build/bin/llama-server}"
+LLAMA_MODEL="${LLAMA_MODEL:-}"
+LLAMA_CTX="${LLAMA_CTX:-16384}"
+LLAMA_ARGS="${LLAMA_ARGS:---reasoning off}"
+LLAMA_LABEL="${LLAMA_LABEL:-llama.cpp}"
+
+# --- backend B: DwarfStar (ds4) -----------------------------------------
+DS4_DIR="${DS4_DIR:-$HOME/git/ds4}"
+DS4_BIN="${DS4_BIN:-$DS4_DIR/ds4-server}"
+DS4_MODEL="${DS4_MODEL:-}"
+DS4_CTX="${DS4_CTX:-32768}"
+DS4_KV_DIR="${DS4_KV_DIR:-$HOME/.cache/ds4-kv}"
+DS4_KV_MB="${DS4_KV_MB:-8192}"
+DS4_LABEL="${DS4_LABEL:-DwarfStar}"
+
+# Metal keeps GPU buffers wired. macOS caps that below total RAM, so a model
+# larger than the cap can only run by raising the cap first. 0 = macOS default.
+DS4_WIRED_MB="${DS4_WIRED_MB:-88064}"
+
+c_grn=$'\033[32m'; c_ylw=$'\033[33m'; c_red=$'\033[31m'; c_dim=$'\033[2m'; c_off=$'\033[0m'
+say()  { printf '%s\n' "$*"; }
+ok()   { printf '%s%s%s\n' "$c_grn" "$*" "$c_off"; }
+warn() { printf '%s%s%s\n' "$c_ylw" "$*" "$c_off"; }
+die()  { printf '%s%s%s\n' "$c_red" "$*" "$c_off" >&2; exit 1; }
+
+wired_limit() { sysctl -n iogpu.wired_limit_mb 2>/dev/null || echo 0; }
+
+backend_pattern() {
+  case "$1" in
+    llama) printf 'llama-server .*--port %s' "$PORT" ;;
+    ds4)   printf 'ds4-server' ;;
+  esac
+}
+
+running_backend() {
+  pgrep -f "$(backend_pattern llama)" >/dev/null 2>&1 && { echo llama; return; }
+  pgrep -f "$(backend_pattern ds4)"   >/dev/null 2>&1 && { echo ds4; return; }
+  echo none
+}
+
+stop_all() {
+  local found=0 b
+  for b in llama ds4; do
+    pgrep -f "$(backend_pattern "$b")" >/dev/null 2>&1 && { found=1; pkill -f "$(backend_pattern "$b")"; }
+  done
+  [ "$found" = 1 ] || return 0
+
+  # Releasing tens of GiB of wired pages is not instantaneous. Starting the
+  # next model before the old one is gone is how you hang the machine.
+  local i
+  for ((i = 0; i < 60; i++)); do
+    sleep 1
+    [ "$(running_backend)" = none ] && { ok "stopped previous backend"; sleep 2; return 0; }
+  done
+
+  warn "graceful stop timed out, forcing"
+  for b in llama ds4; do pkill -9 -f "$(backend_pattern "$b")" 2>/dev/null; done
+  sleep 3
+  [ "$(running_backend)" = none ] || die "could not stop running backend; refusing to start another"
+}
+
+wait_ready() {
+  local url="$1" limit="${2:-300}" i
+  for ((i = 1; i <= limit; i++)); do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$url")" = "200" ] && {
+      ok "ready after ${i}s on port $PORT"; return 0; }
+    sleep 1
+  done
+  return 1
+}
+
+start_llama() {
+  [ -n "$LLAMA_MODEL" ] || die "LLAMA_MODEL is not set (see $CONFIG)"
+  [ -f "$LLAMA_MODEL" ] || die "model not found: $LLAMA_MODEL"
+  [ -x "$LLAMA_BIN" ]   || die "llama-server not found: $LLAMA_BIN"
+  stop_all
+  say "${c_dim}starting $LLAMA_LABEL (ctx $LLAMA_CTX)${c_off}"
+  # shellcheck disable=SC2086
+  nohup "$LLAMA_BIN" -m "$LLAMA_MODEL" --port "$PORT" -c "$LLAMA_CTX" $LLAMA_ARGS \
+    > "$LOG_DIR/llama.log" 2>&1 &
+  wait_ready "http://127.0.0.1:$PORT/health" 600 \
+    || die "$LLAMA_LABEL did not become ready; see $LOG_DIR/llama.log"
+}
+
+start_ds4() {
+  local resident="${1:-no}" extra=()
+  [ -n "$DS4_MODEL" ] || die "DS4_MODEL is not set (see $CONFIG)"
+  [ -x "$DS4_BIN" ]   || die "ds4-server not found: $DS4_BIN"
+
+  if [ "$resident" = yes ]; then
+    local cur; cur="$(wired_limit)"
+    if [ "$cur" -lt "$DS4_WIRED_MB" ]; then
+      warn "resident mode needs iogpu.wired_limit_mb >= $DS4_WIRED_MB (currently $cur)"
+      say  "    sudo sysctl iogpu.wired_limit_mb=$DS4_WIRED_MB     # raise"
+      say  "    sudo sysctl iogpu.wired_limit_mb=0                 # restore afterwards"
+      exit 2
+    fi
+    warn "resident mode leaves little memory for the rest of the system; close other apps"
+  else
+    extra+=(--ssd-streaming)
+  fi
+
+  stop_all
+  mkdir -p "$DS4_KV_DIR"
+  say "${c_dim}starting $DS4_LABEL (ctx $DS4_CTX, $([ "$resident" = yes ] && echo resident || echo streaming))${c_off}"
+  ( cd "$DS4_DIR" && nohup "$DS4_BIN" -m "$DS4_MODEL" --ctx "$DS4_CTX" --port "$PORT" \
+      --kv-disk-dir "$DS4_KV_DIR" --kv-disk-space-mb "$DS4_KV_MB" "${extra[@]}" \
+      > "$LOG_DIR/ds4.log" 2>&1 & )
+  wait_ready "http://127.0.0.1:$PORT/v1/models" 900 \
+    || die "$DS4_LABEL did not become ready; see $LOG_DIR/ds4.log"
+}
+
+status() {
+  local b w
+  b="$(running_backend)"
+  w="$(wired_limit)"
+  printf 'backend     : %s\n' "$b"
+  printf 'port        : %s\n' "$PORT"
+  printf 'wired limit : %s MB%s\n' "$w" \
+    "$([ "$w" = 0 ] && echo ' (macOS default)' || echo '  <- raised; restore with: sudo sysctl iogpu.wired_limit_mb=0')"
+  [ "$b" != none ] && printf 'health      : HTTP %s\n' \
+    "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/v1/models")"
+  command -v vm_stat >/dev/null && printf 'free memory : %s\n' \
+    "$(vm_stat | awk '/Pages free/{gsub(/\./,"",$3); printf "%.1f GiB", $3*16384/1073741824}')"
+  command -v sysctl >/dev/null && printf 'swap        : %s\n' "$(sysctl -n vm.swapusage 2>/dev/null | sed 's/^ *//')"
+}
+
+usage() {
+  cat <<EOF
+llm-switch - one large local model at a time, always on port $PORT
+
+  llm-switch llama             start the llama.cpp backend   ($LLAMA_LABEL)
+  llm-switch ds4               start DwarfStar, SSD streaming ($DS4_LABEL)
+  llm-switch ds4 --resident    start DwarfStar fully resident (needs a raised wired limit)
+  llm-switch stop              stop whatever is running
+  llm-switch status            backend, port, memory
+  llm-switch logs [llama|ds4]  tail a backend log
+
+config: $CONFIG
+EOF
+}
+
+case "${1:-}" in
+  llama|qwen) start_llama ;;
+  ds4)        [ "${2:-}" = --resident ] && start_ds4 yes || start_ds4 no ;;
+  stop)       stop_all; ok "all backends stopped" ;;
+  status)     status ;;
+  logs)       tail -f "$LOG_DIR/${2:-llama}.log" ;;
+  ""|-h|--help|help) usage ;;
+  *) usage; exit 1 ;;
+esac

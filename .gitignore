@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+bench/**/out*.txt
+bench/**/*.r[0-9].out
+bench/alps/fake.json
+bench/alps/schema.json
+bench/alps/review.sql
+bench/alps/.combined.txt
+bench/alps/prompt.txt
+bench/alps/out/
+bench/alps/out.txt

@@ -1,0 +1,14 @@
+Write a single C function with this exact signature:
+
+size_t utf8_truncate(char *s, size_t max_bytes);
+
+Requirements:
+- Truncate the NUL-terminated UTF-8 string s so that its byte length is at most max_bytes, never splitting a multi-byte codepoint.
+- Write a NUL terminator at the new end.
+- Return the new byte length (not counting the NUL).
+- If the string already fits, leave it unchanged and return its length.
+- max_bytes may be 0.
+- Do not assume the input is valid UTF-8; never read or write outside the buffer.
+- Use only <stddef.h> and <string.h>.
+
+Output ONLY the function body in a single C code block. No explanation.

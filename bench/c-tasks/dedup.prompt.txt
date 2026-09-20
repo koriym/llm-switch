@@ -1,0 +1,12 @@
+Write a single C function with this exact signature:
+
+size_t dedup_sorted(int *a, size_t n);
+
+Requirements:
+- a is sorted in non-decreasing order and has n elements.
+- Remove duplicates in place, keeping the first occurrence of each value, preserving order.
+- Return the number of unique elements. Elements past that index may hold anything.
+- n may be 0.
+- Use only <stddef.h>.
+
+Output ONLY the function in a single C code block. No explanation.

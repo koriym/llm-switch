@@ -1,0 +1,13 @@
+Write a single C function with this exact signature:
+
+size_t lower_bound(const int *a, size_t n, int key);
+
+Requirements:
+- a is sorted in non-decreasing order with n elements.
+- Return the index of the first element that is NOT less than key.
+- If every element is less than key, return n.
+- Must run in O(log n) and must not overflow when computing the midpoint.
+- n may be 0.
+- Use only <stddef.h>.
+
+Output ONLY the function in a single C code block. No explanation.
