@@ -7,8 +7,13 @@ LLM_SWITCH_PORT=8765
 # --- llama.cpp -----------------------------------------------------------
 LLAMA_BIN="$HOME/git/llama.cpp/build/bin/llama-server"
 LLAMA_MODEL="$HOME/gguf/Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf"
-LLAMA_CTX=16384
-LLAMA_ARGS="--reasoning off"
+# Agent clients send large system prompts before you type anything: OpenCode's
+# prompt plus tool schemas measured 18,634 tokens here, so 16384 rejects every
+# request and the client retries in a loop. Qwen's KV is ~24 KB/token, so
+# 65536 costs ~1.5 GiB on top of the weights.
+LLAMA_CTX=65536
+# --alias keeps /v1/models returning a clean name instead of the GGUF path.
+LLAMA_ARGS="--reasoning off --alias qwen3.8-flash-next"
 LLAMA_LABEL="Qwen3.8-Flash-Next Q2_K_XL (73.4 GiB)"
 
 # --- DwarfStar (ds4) -----------------------------------------------------

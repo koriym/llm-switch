@@ -75,6 +75,48 @@ resident is measuring the memory ceiling, not the engines.
 
 Full numbers, KV-cache behaviour, and quality results: [NOTES.md](NOTES.md).
 
+## Using it as a coding agent
+
+The server is OpenAI-compatible, so any client that accepts a custom base URL
+works. With [OpenCode](https://opencode.ai), merge this into
+`~/.config/opencode/opencode.json`:
+
+```json
+{
+  "provider": {
+    "llm-switch": {
+      "name": "llm-switch (local)",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "baseURL": "http://127.0.0.1:8765/v1", "apiKey": "local" },
+      "models": {
+        "qwen3.8-flash-next": { "limit": { "context": 65536, "output": 16384 } },
+        "deepseek-v4-flash":  { "limit": { "context": 32768, "output": 16384 } }
+      }
+    }
+  }
+}
+```
+
+One provider, one port; pick the model entry matching whatever is loaded.
+Keep `limit.context` equal to `LLAMA_CTX` / `DS4_CTX`, or the client will pack
+a prompt the server refuses and then retry in a loop.
+
+```sh
+llm-switch llama
+opencode run --model llm-switch/qwen3.8-flash-next "..."
+```
+
+**Be realistic about the latency.** A one-line "create this file" task took
+**908 s** end to end here. OpenCode's system prompt and tool schemas are
+18,634 tokens, re-prefilled at ~300 t/s for each new session, and every tool
+round trip decodes at ~19 t/s. Local agents on this hardware are for work you
+are willing to leave running, not for interactive back-and-forth.
+
+ds4 has its own agent, `ds4-agent`, which needs no server and reuses its KV
+cache across tool rounds — see [NOTES.md](NOTES.md#agent-tool-loops-reuse-the-kv-cache).
+`llama-server` has no equivalent, so its per-session prefill is paid in full
+every time.
+
 ## bench/
 
 An objective harness for comparing model output: C functions graded by
