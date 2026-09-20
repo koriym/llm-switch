@@ -107,15 +107,26 @@ opencode run --model llm-switch/qwen3.8-flash-next "..."
 ```
 
 **Be realistic about the latency.** A one-line "create this file" task took
-**908 s** end to end here. OpenCode's system prompt and tool schemas are
-18,634 tokens, re-prefilled at ~300 t/s for each new session, and every tool
-round trip decodes at ~19 t/s. Local agents on this hardware are for work you
-are willing to leave running, not for interactive back-and-forth.
+**908 s** end to end here. The server log accounts for it:
 
-ds4 has its own agent, `ds4-agent`, which needs no server and reuses its KV
-cache across tool rounds — see [NOTES.md](NOTES.md#agent-tool-loops-reuse-the-kv-cache).
-`llama-server` has no equivalent, so its per-session prefill is paid in full
-every time.
+| | tokens | time | calls |
+| --- | ---: | ---: | ---: |
+| prompt eval | 57,110 | 346 s | 124 |
+| decode | 10,963 | 570 s | 124 |
+
+Decode dominates, not prefill. An agent turn is many short model calls, and
+each one pays ~19 t/s for its own output. Prompt caching is working — 124
+calls cost 57k prompt tokens in total, against the 2.3M they would cost if
+OpenCode's 18,634-token system prompt were reprocessed every time.
+
+Local agents on this hardware are for work you are willing to leave running,
+not for interactive back-and-forth.
+
+`llama-server` caches prompts in host RAM by default (`--cache-prompt`), and
+`--cache-reuse N` plus `--slot-save-path` with `POST /slots/{id}?action=save`
+extend that to KV shifting and on-disk slots. ds4 takes a different route:
+`ds4-agent` needs no server at all and reuses its KV across tool rounds — see
+[NOTES.md](NOTES.md#agent-tool-loops-reuse-the-kv-cache).
 
 ## bench/
 
