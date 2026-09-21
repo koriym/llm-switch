@@ -126,11 +126,23 @@ executed `w(1)`, two README examples that could not run, and a rubric
 isolation guard that silently fell back to the co-located copy it was meant
 to bypass.
 
+A second failure mode is worth separating from those eight, because it is not
+a bug in a harness. Twice I wrote that ds4 had a capability llama.cpp lacked
+— prompt caching, then an Anthropic-compatible endpoint — and both times
+`llama.cpp/tools/server/README.md` said otherwise, in a section I had never
+opened. I had read ds4's documentation down to its `--help` subtopics.
+
+Both errors pointed the same way: toward the side I had studied. Reading one
+participant's documentation and not the other's does not add noise, it adds
+bias, and the bias is invisible from the inside because each individual claim
+feels well grounded. The second one was published before it was caught.
+
 The conclusion is not that the models are good. It is that two models of this
 class, on this hardware, are close enough that a hand-built rig will produce
 its own artefacts faster than it produces real differences.
 
-**If a comparison shows a large gap, suspect the harness first.**
+**If a comparison shows a large gap, suspect the harness first — then check
+whether you have read both sides.**
 
 Real usage separates them faster than synthetic tasks do. That is what
 `llm-switch` is for.
