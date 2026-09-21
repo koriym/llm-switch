@@ -4,12 +4,15 @@ An objective harness for comparing local model output. Included less as a
 benchmark suite than as a worked example of grading without reading the
 output yourself.
 
-Two task families:
+Three task families:
 
 - `c-tasks/` — five C functions, each with a prompt and a test program.
   Scoring is compile + run under ASan/UBSan, not inspection.
 - `alps/` — an [ALPS](https://alps.io) profile in, three artifacts out: fake
   data, a JSON Schema, SQLite DDL. 31 checks, 10 of them negative.
+- `mutation/` — the reverse direction: the model writes the tests, and they
+  are scored by how many single-token changes to the implementation they
+  catch. See [mutation/README.md](mutation/README.md).
 
 ## Grading by cross-check
 
