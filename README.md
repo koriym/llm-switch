@@ -43,24 +43,18 @@ Requires `curl` and, per backend, a built
 
 ## The wired-memory ceiling
 
-This is the part worth knowing even if you never use this script.
-
-Metal keeps GPU buffers *wired* — they cannot be paged out. macOS caps how
-much of RAM may be wired, and that cap, not total RAM, is the real limit on
-model size. On a 96 GiB M3 Max:
+Worth knowing even if you never use this script. Metal keeps GPU buffers
+*wired* — they cannot be paged out — and macOS caps how much of RAM may be
+wired. That cap, not total RAM, is the real limit on model size:
 
 ```
 recommendedMaxWorkingSetSize = 83494.17 MB   # = 77.76 GiB, on a 96 GiB machine
 ```
 
-A model above the cap silently falls back to a slower streaming path, or fails
-to load. `sysctl iogpu.wired_limit_mb` overrides it; `0` means "let macOS
-decide".
-
+Above it a model silently falls back to streaming, or fails to load.
 `llm-switch ds4 --resident` refuses to start and prints the command rather
-than raising the limit itself, because a too-high limit starves the OS.
-Raising it to 86 GiB on a 96 GiB machine leaves ~10 GiB for everything else;
-while it was set during testing, swap grew from 1 GB to 9 GB.
+than raising the limit itself: at 86 GiB on this machine only ~10 GiB is
+left for everything else, and swap grew from 1 GB to 9 GB while it was set.
 
 ```sh
 sudo sysctl iogpu.wired_limit_mb=88064     # raise
@@ -126,30 +120,13 @@ file at launch. Restarting the app does not recycle it:
 pkill -f "opencode serve"      # respawns on the next request, with the new config
 ```
 
-Four guesses were spent on caches, registry ids and config keys before
-`ps -eo pid,etime` showed the server had been up twelve hours — longer than
-the config had existed.
-
-
 **Be realistic about the latency.** A one-line "create this file" task took
-**908 s** end to end here. The server log accounts for it:
-
-| | tokens | time | calls |
-| --- | ---: | ---: | ---: |
-| prompt eval | 57,110 | 346 s | 124 |
-| decode | 10,963 | 570 s | 124 |
-
-Decode dominates, not prefill. An agent turn is many short model calls, and
-each one pays ~19 t/s for its own output. Prompt caching is working — 124
-calls cost 57k prompt tokens in total, against the 2.3M they would cost if
-OpenCode's 18,634-token system prompt were reprocessed every time.
-
-Local agents on this hardware are for work you are willing to leave running,
-not for interactive back-and-forth.
-
-`llama-server` caches prompts in host RAM by default (`--cache-prompt`), and
-`--cache-reuse N` plus `--slot-save-path` with `POST /slots/{id}?action=save`
-extend that to KV shifting and on-disk slots.
+908 s end to end. An agent turn is many short model calls, each paying
+~19 t/s for its own output, and decode dominates it: 570 s against 346 s of
+prompt processing. Caching is not the problem — `llama-server` caches
+prompts in host RAM by default, and those 124 calls cost 57k prompt tokens
+rather than the 2.3M that reprocessing OpenCode's 18,634-token system prompt
+each time would have. Local agents here are for work you can leave running.
 
 ### ds4-agent, the other shape
 
@@ -162,44 +139,27 @@ llm-switch agent --chdir /path/to/work --non-interactive --prompt-file task.md
 ```
 
 Streaming mode is usable here even though its decode rate is not. After the
-first tool round the context is already in the KV cache, so each later round
-reprocesses almost nothing and the cost collapses to the tokens the model
-actually writes — and a tool call is a short write. The decode rate that
-makes streaming hopeless for a long single answer barely shows up across a
-sequence of small ones.
+first tool round the context is already cached, so each later round costs
+only the tokens the model writes — and a tool call is a short write.
+[Measured here.](bench/results/ds4-agent-streaming.md)
 
-Measured in [bench/results/](bench/results/ds4-agent-streaming.md).
+Choose by who owns the agent loop, not by task size. If the caller brings
+its own tools, permissions and sub-agents — Paseo, OpenCode, Claude Code —
+use a server; those can also run several sessions at once. If you want ds4's
+loop, its tools and its session KV, use the agent: one process, one session.
 
-Choose by who owns the agent loop, not by task size. If the caller has its
-own tools, permissions and sub-agents — Paseo, OpenCode, Claude Code — use a
-server. If you want ds4's loop, its tools and its session KV, use the agent.
-Only the servers can run several sessions at once (`--batched-session`,
-`-np`); the agent is one process, one session.
+## What to expect
 
-## What to expect from a local model on this hardware
+Work with a goal and a mechanical check is mostly within reach and does not
+need a frontier model. Two limits, observed rather than assumed: the task
+has to be a transformation rather than a discovery — both models turned ALPS
+descriptors into columns reliably, and each failed one task in five where
+the answer had to be worked out — and the scope has to be bounded, since the
+model that emitted 132 test cases unprompted scored full marks when capped
+at twenty.
 
-Work that has a goal and a mechanical check is mostly within reach. Given an
-ALPS profile, both models here produced fake data, a JSON Schema and SQLite
-DDL that validate against each other and against ten negative cases — one of
-them on the first attempt, the other after a single round of feedback.
-Neither result needed a frontier model.
-
-Two qualifiers, both observed rather than assumed.
-
-**The task has to be a transformation, not a discovery.** Where the answer
-was latent in the input — descriptor ids determining column names and types
-— both models were reliable. Where it had to be worked out — a UTF-8 lead
-byte at a truncation boundary, the magnitude of `LONG_MIN` — each failed one
-task out of five.
-
-**The scope has to be bounded.** Asked for a test suite with no limit, one
-model emitted 132 cases and was still going when the token budget ran out.
-Asked for at most twenty, the same model killed every mutant a hand-written
-suite killed, on four of the five functions it was given; the fifth suite
-did not compile. The difference was in the instruction, not the model.
-
-Differences between the two models were real but small, and none of them
-decided which to run daily. Memory did.
+Differences between the two were real but small. Memory decided which to run
+daily, not quality. [NOTES.md](NOTES.md) has the numbers.
 
 ## bench/
 
