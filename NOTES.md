@@ -6,14 +6,33 @@ throughout. Treat these as orders of magnitude, not a benchmark.
 
 ## Throughput
 
-2048-token prompt, 128 generated tokens, one model resident at a time.
+The first four rows are `ds4-bench` / `llama-bench`: a 2048-token prompt and
+128 generated tokens, one model at a time. The last row is not measured that
+way — see the note under it.
 
 | backend | model | size | prefill | decode |
 | --- | --- | ---: | ---: | ---: |
 | llama.cpp | Qwen3.8-Flash-Next UD-IQ1_S | 67.55 GiB | 309.7 t/s | 20.3 t/s |
 | llama.cpp | Qwen3.8-Flash-Next UD-Q2_K_XL | 73.44 GiB | 285.8 t/s | 19.3 t/s |
-| ds4 (resident) | DeepSeek V4 Flash Q2 | 80.76 GiB | 173–182 t/s | 15.1–15.8 t/s |
-| ds4 (streaming) | DeepSeek V4 Flash Q2 | 80.76 GiB | 106.2 t/s | 4.2 t/s |
+| ds4-server (resident) | DeepSeek V4 Flash Q2 | 80.76 GiB | 173–182 t/s | 15.1–15.8 t/s |
+| ds4-server (streaming) | DeepSeek V4 Flash Q2 | 80.76 GiB | 106.2 t/s | 4.2 t/s |
+| ds4-agent (streaming) | DeepSeek V4 Flash Q2 | 80.76 GiB | 60.9 t/s | ≥10.7 t/s |
+
+**The last row is derived, not measured.** Over a 14-round agent session,
+prefill is the total of the per-round figures, and decode is generated tokens
+divided by elapsed time minus prefill — a denominator that still contains
+every tool execution, so the true decode rate is higher than 10.7. Its
+prefill is lower than the server's for the opposite reason: most rounds
+reprocess almost nothing, so the average is dominated by cache hits rather
+than by how fast the machine can prefill.
+
+Taken at face value that is 2.5× the server's streaming decode with the same
+model, quantisation, memory mode and machine. The plausible explanation is
+that a long-lived process keeps the routed expert cache warm across rounds
+while a one-shot benchmark request does not, but that is untested. A resident
+run cannot settle it — resident has no expert cache misses to warm — so the
+discriminating measurement is sustained or back-to-back generation against
+ds4-server in streaming mode.
 
 **A quantisation tier costs less than its size suggests.** IQ1_S → Q2_K_XL is
 +5.9 GiB for −5% decode. For a MoE with ~6B active parameters, file size is a

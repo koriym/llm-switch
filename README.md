@@ -74,12 +74,16 @@ M3 Max, 96 GiB. 2048-token prompt, 128 generated tokens, one model at a time.
 | backend | model | size | prefill | decode |
 | --- | --- | ---: | ---: | ---: |
 | llama.cpp | Qwen3.8-Flash-Next UD-Q2_K_XL | 73.44 GiB | 285.8 t/s | 19.3 t/s |
-| ds4 (resident) | DeepSeek V4 Flash Q2 | 80.76 GiB | 173–182 t/s | 15.1–15.8 t/s |
-| ds4 (streaming) | DeepSeek V4 Flash Q2 | 80.76 GiB | 106.2 t/s | 4.2 t/s |
+| ds4-server (resident) | DeepSeek V4 Flash Q2 | 80.76 GiB | 173–182 t/s | 15.1–15.8 t/s |
+| ds4-server (streaming) | DeepSeek V4 Flash Q2 | 80.76 GiB | 106.2 t/s | 4.2 t/s |
 
 The same ds4 build is 3.7× faster at decode once the model fits under the
 wired cap. Any comparison that puts one engine in streaming mode and the other
 resident is measuring the memory ceiling, not the engines.
+
+`ds4-agent` is absent from this table on purpose: a benchmark request and an
+agent session are not measured the same way, and the derived agent figure is
+2.5× the server's streaming decode for reasons not yet established.
 
 Full numbers, KV-cache behaviour, and quality results: [NOTES.md](NOTES.md).
 
