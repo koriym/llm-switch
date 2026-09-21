@@ -106,6 +106,19 @@ llm-switch llama
 opencode run --model llm-switch/qwen3.8-flash-next "..."
 ```
 
+If a GUI front end such as Paseo still reports `Model not found` after you
+edit the config, it is holding a long-lived `opencode serve` that read the
+file at launch. Restarting the app does not recycle it:
+
+```sh
+pkill -f "opencode serve"      # respawns on the next request, with the new config
+```
+
+Four guesses were spent on caches, registry ids and config keys before
+`ps -eo pid,etime` showed the server had been up twelve hours — longer than
+the config had existed.
+
+
 **Be realistic about the latency.** A one-line "create this file" task took
 **908 s** end to end here. The server log accounts for it:
 
