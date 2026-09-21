@@ -20,7 +20,7 @@ round   prompt   cached  prefilled  reuse  prefill s  generated
 prefilled tokens : 7437
 prefill time     : 122.1 s  (60.9 tok/s)
 generated tokens : 5682
-first token at   : 2026-09-21 11:37:24.046
-last token at    : 2026-09-21 11:48:16.453
+span             : 652.4 s
+decode           : 10.7 tok/s (span minus prefill)
 
 Without cache reuse the same rounds would have prefilled 140628 tokens instead of 7437 (18.9x).

@@ -157,11 +157,14 @@ llm-switch agent --chdir /path/to/work
 llm-switch agent --chdir /path/to/work --non-interactive --prompt-file task.md
 ```
 
-On the ALPS benchmark it scored 31/31 in 657 s over 14 tool rounds, under SSD
-streaming — the slower memory mode. Cache reuse per round climbs to 99–100%
-and cuts prompt processing 18.9x, which is why a slow decode rate is not the
-obstacle it looks like for tool-driven work. Numbers in
-[bench/results/](bench/results/ds4-agent-streaming.md).
+Streaming mode is usable here even though its decode rate is not. After the
+first tool round the context is already in the KV cache, so each later round
+reprocesses almost nothing and the cost collapses to the tokens the model
+actually writes — and a tool call is a short write. The decode rate that
+makes streaming hopeless for a long single answer barely shows up across a
+sequence of small ones.
+
+Measured in [bench/results/](bench/results/ds4-agent-streaming.md).
 
 Choose by who owns the agent loop, not by task size. If the caller has its
 own tools, permissions and sub-agents — Paseo, OpenCode, Claude Code — use a

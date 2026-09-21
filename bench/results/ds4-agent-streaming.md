@@ -9,12 +9,13 @@ Graded by the 31-check rubric in `bench/alps/` (10 of them negative).
 | wall | 657 s |
 | tool rounds | 14 |
 | prefill | 7,437 tok / 122.1 s (60.9 t/s) |
-| decode | 5,682 tok / ~530 s (10.7 t/s) |
+| decode | 5,682 tok, 10.7 t/s |
 | cache saving | 18.9x (140,628 -> 7,437 prompt tokens) |
 
 Cache reuse per round climbs 35% -> 96% -> 99-100% and stays there: after the
 first round almost nothing is reprocessed. Full table in
-`ds4-agent-streaming.txt`.
+`ds4-agent-streaming.txt`; the trace here has its per-token lines stripped
+(1.2 MB -> 20 KB), which is why it reports no decode rate.
 
 Two things worth flagging.
 

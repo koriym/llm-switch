@@ -74,8 +74,17 @@ def main():
           + (f"  ({tot_suffix/(tot_pref/1000):.1f} tok/s)" if tot_pref else ""))
     print(f"generated tokens : {tot_gen}")
     if tok_first and tok_last:
-        print(f"first token at   : {tok_first}")
-        print(f"last token at    : {tok_last}")
+        import datetime
+        fmt = "%Y-%m-%d %H:%M:%S.%f"
+        span = (datetime.datetime.strptime(tok_last, fmt)
+                - datetime.datetime.strptime(tok_first, fmt)).total_seconds()
+        decode_s = span - tot_pref / 1000
+        print(f"span             : {span:.1f} s")
+        if decode_s > 0:
+            print(f"decode           : {tot_gen / decode_s:.1f} tok/s "
+                  f"(span minus prefill)")
+    else:
+        print("span             : n/a (per-token lines stripped from this trace)")
 
     naive = sum(r["prompt"] for r in rounds.values())
     if naive:
