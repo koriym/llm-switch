@@ -48,17 +48,32 @@ backend_pattern() {
   case "$1" in
     llama) printf 'llama-server .*--port %s' "$PORT" ;;
     ds4)   printf 'ds4-server' ;;
+    agent) printf 'ds4-agent' ;;
   esac
 }
 
 running_backend() {
   pgrep -f "$(backend_pattern llama)" >/dev/null 2>&1 && { echo llama; return; }
   pgrep -f "$(backend_pattern ds4)"   >/dev/null 2>&1 && { echo ds4; return; }
+  pgrep -f "$(backend_pattern agent)" >/dev/null 2>&1 && { echo agent; return; }
   echo none
+}
+
+# ds4-agent loads the same weights as ds4-server without going through a port,
+# so it is just as exclusive - but it is an interactive session someone may be
+# in the middle of. Never kill it silently; make the caller decide.
+refuse_if_agent() {
+  pgrep -f "$(backend_pattern agent)" >/dev/null 2>&1 || return 0
+  warn "ds4-agent is running and holds the model. Starting another backend now"
+  warn "would load a second copy and thrash swap."
+  say  "Quit ds4-agent (/quit), or force it down with:"
+  say  "    pkill -f ds4-agent"
+  exit 2
 }
 
 stop_all() {
   local found=0 b
+  # Servers only: ds4-agent is handled by refuse_if_agent.
   for b in llama ds4; do
     pgrep -f "$(backend_pattern "$b")" >/dev/null 2>&1 && { found=1; pkill -f "$(backend_pattern "$b")"; }
   done
@@ -92,6 +107,7 @@ start_llama() {
   [ -n "$LLAMA_MODEL" ] || die "LLAMA_MODEL is not set (see $CONFIG)"
   [ -f "$LLAMA_MODEL" ] || die "model not found: $LLAMA_MODEL"
   [ -x "$LLAMA_BIN" ]   || die "llama-server not found: $LLAMA_BIN"
+  refuse_if_agent
   stop_all
   say "${c_dim}starting $LLAMA_LABEL (ctx $LLAMA_CTX)${c_off}"
   # shellcheck disable=SC2086
@@ -119,6 +135,7 @@ start_ds4() {
     extra+=(--ssd-streaming)
   fi
 
+  refuse_if_agent
   stop_all
   mkdir -p "$DS4_KV_DIR"
   say "${c_dim}starting $DS4_LABEL (ctx $DS4_CTX, $([ "$resident" = yes ] && echo resident || echo streaming))${c_off}"
@@ -127,6 +144,24 @@ start_ds4() {
       > "$LOG_DIR/ds4.log" 2>&1 & )
   wait_ready "http://127.0.0.1:$PORT/v1/models" 900 \
     || die "$DS4_LABEL did not become ready; see $LOG_DIR/ds4.log"
+}
+
+# ds4-agent is not a server: it loads the weights into its own process and
+# talks to no port. Routing it through llm-switch is the only way the mutual
+# exclusion actually holds - otherwise a running llama-server plus an agent
+# is two models at once, which is exactly what this script exists to prevent.
+start_agent() {
+  local bin="${DS4_AGENT_BIN:-$DS4_DIR/ds4-agent}"
+  [ -x "$bin" ] || die "ds4-agent not found: $bin"
+  [ -n "$DS4_MODEL" ] || die "DS4_MODEL is not set (see $CONFIG)"
+
+  local extra=()
+  [ "${DS4_AGENT_RESIDENT:-no}" = yes ] || extra+=(--ssd-streaming)
+
+  stop_all
+  say "${c_dim}starting ds4-agent (ctx $DS4_CTX, $([ "${DS4_AGENT_RESIDENT:-no}" = yes ] && echo resident || echo streaming))${c_off}"
+  cd "$DS4_DIR" || die "cannot enter $DS4_DIR"
+  exec "$bin" -m "$DS4_MODEL" --ctx "$DS4_CTX" "${extra[@]}" "$@"
 }
 
 status() {
@@ -149,11 +184,16 @@ usage() {
 llm-switch - one large local model at a time, always on port $PORT
 
   llm-switch llama             start the llama.cpp backend   ($LLAMA_LABEL)
-  llm-switch ds4               start DwarfStar, SSD streaming ($DS4_LABEL)
-  llm-switch ds4 --resident    start DwarfStar fully resident (needs a raised wired limit)
+  llm-switch ds4               start DwarfStar server, SSD streaming ($DS4_LABEL)
+  llm-switch ds4 --resident    start DwarfStar server fully resident (needs a raised wired limit)
+  llm-switch agent [args...]   stop the servers, then run ds4-agent in this terminal
   llm-switch stop              stop whatever is running
   llm-switch status            backend, port, memory
   llm-switch logs [llama|ds4]  tail a backend log
+
+Only one of these holds the weights at a time. 'agent' replaces a running
+server; a running agent makes the server commands refuse rather than load a
+second copy, since you may be mid-session.
 
 config: $CONFIG
 EOF
@@ -162,7 +202,17 @@ EOF
 case "${1:-}" in
   llama|qwen) start_llama ;;
   ds4)        [ "${2:-}" = --resident ] && start_ds4 yes || start_ds4 no ;;
-  stop)       stop_all; ok "all backends stopped" ;;
+  agent)      shift; start_agent "$@" ;;
+  stop)       stop_all
+              # stop_all only handles the servers. Claiming success while
+              # ds4-agent still holds 80 GiB is how the next start becomes a
+              # double load.
+              if pgrep -f "$(backend_pattern agent)" >/dev/null 2>&1; then
+                warn "servers stopped, but ds4-agent is still running and holds the model"
+                say  "    pkill -f ds4-agent      # if you are not mid-session"
+                exit 1
+              fi
+              ok "all backends stopped" ;;
   status)     status ;;
   logs)       tail -f "$LOG_DIR/${2:-llama}.log" ;;
   ""|-h|--help|help) usage ;;

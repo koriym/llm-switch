@@ -1,0 +1,26 @@
+system prompt kv hit: 1839 tokens
+tool rounds: 14
+
+round   prompt   cached  prefilled  reuse  prefill s  generated
+    0     5313     1839       3474    35%       35.3         44
+    1     5598     5357        241    96%        9.2         73
+    2     6839     5671       1168    83%       19.9        107
+    3     7010     6946         64    99%        3.0       1156
+    4     8195     8166         29   100%        2.1        181
+    5     8528     8376        152    98%        3.5        616
+    6     9173     9144         29   100%        1.3       2580
+    7    11914    11753        161    99%        5.8         43
+    8    12120    11957        163    99%        3.9         61
+    9    12324    12181        143    99%        3.6         90
+   10    12546    12414        132    99%        3.1        351
+   11    12925    12897         28   100%        1.5         63
+   12    13416    12988        428    97%        8.9         86
+   13    14727    13502       1225    92%       21.1        231
+
+prefilled tokens : 7437
+prefill time     : 122.1 s  (60.9 tok/s)
+generated tokens : 5682
+first token at   : 2026-09-21 11:37:24.046
+last token at    : 2026-09-21 11:48:16.453
+
+Without cache reuse the same rounds would have prefilled 140628 tokens instead of 7437 (18.9x).
