@@ -176,12 +176,38 @@ server. If you want ds4's loop, its tools and its session KV, use the agent.
 Only the servers can run several sessions at once (`--batched-session`,
 `-np`); the agent is one process, one session.
 
+## What to expect from a local model on this hardware
+
+Work that has a goal and a mechanical check is mostly within reach. Given an
+ALPS profile, both models here produced fake data, a JSON Schema and SQLite
+DDL that validate against each other and against ten negative cases — one of
+them on the first attempt, the other after a single round of feedback.
+Neither result needed a frontier model.
+
+Two qualifiers, both observed rather than assumed.
+
+**The task has to be a transformation, not a discovery.** Where the answer
+was latent in the input — descriptor ids determining column names and types
+— both models were reliable. Where it had to be worked out — a UTF-8 lead
+byte at a truncation boundary, the magnitude of `LONG_MIN` — each failed one
+task out of five.
+
+**The scope has to be bounded.** Asked for a test suite with no limit, one
+model emitted 132 cases and was still going when the token budget ran out.
+Asked for at most twenty, the same model killed every mutant a hand-written
+suite killed, on four of the five functions it was given; the fifth suite
+did not compile. The difference was in the instruction, not the model.
+
+Differences between the two models were real but small, and none of them
+decided which to run daily. Memory did.
+
 ## bench/
 
 An objective harness for comparing model output: C functions graded by
 compiling and running tests, an ALPS-to-artifacts task graded by 31 checks of
-which 10 are negative, and `bench/agent/` for summarising a `ds4-agent
---trace`. See [bench/README.md](bench/README.md).
+which 10 are negative, `bench/mutation/` scoring generated tests by what they
+catch, and `bench/agent/` for summarising a `ds4-agent --trace`. See
+[bench/README.md](bench/README.md).
 
 ## License
 
