@@ -1,23 +1,31 @@
 # llm-switch
 
-Run exactly one large local model at a time, always on the same port.
+Run exactly one large local model at a time.
 
 On a unified-memory Mac, two 70–80 GiB models cannot coexist. Starting the
 second one while the first is still resident does not degrade gracefully — it
 thrashes swap and takes the machine with it. `llm-switch` makes the mutual
-exclusion explicit: every start stops the other backend first and verifies it
-is gone before loading anything.
+exclusion explicit: every start stops the other backends first and verifies
+they are gone before loading anything.
 
-Both backends speak the OpenAI chat-completions API on one shared port, so
-clients never need reconfiguring when the model changes.
+Two of them are servers speaking the OpenAI chat-completions API on one
+shared port, so clients never need reconfiguring when the model changes. The
+third, `ds4-agent`, is not a server at all — it loads the same weights into
+its own process — which makes it just as exclusive and just as easy to
+forget.
 
 ```
-llm-switch llama              # llama.cpp backend
-llm-switch ds4                # DwarfStar (ds4), SSD streaming
-llm-switch ds4 --resident     # DwarfStar fully resident (needs a raised wired limit)
+llm-switch llama              # llama.cpp server
+llm-switch ds4                # DwarfStar server, SSD streaming
+llm-switch ds4 --resident     # DwarfStar server fully resident (needs a raised wired limit)
+llm-switch agent [args...]    # stop the servers, then run ds4-agent here
 llm-switch stop
 llm-switch status
 ```
+
+A running agent makes the server commands refuse rather than load a second
+copy, since you may be mid-session, and `stop` says so instead of reporting
+success while 80 GiB is still held.
 
 ## Install
 
@@ -137,15 +145,36 @@ not for interactive back-and-forth.
 
 `llama-server` caches prompts in host RAM by default (`--cache-prompt`), and
 `--cache-reuse N` plus `--slot-save-path` with `POST /slots/{id}?action=save`
-extend that to KV shifting and on-disk slots. ds4 takes a different route:
-`ds4-agent` needs no server at all and reuses its KV across tool rounds — see
-[NOTES.md](NOTES.md#agent-tool-loops-reuse-the-kv-cache).
+extend that to KV shifting and on-disk slots.
+
+### ds4-agent, the other shape
+
+`ds4-agent` is not a server. It owns the loop and the tools itself, so the
+caller hands it a task rather than driving it turn by turn:
+
+```sh
+llm-switch agent --chdir /path/to/work
+llm-switch agent --chdir /path/to/work --non-interactive --prompt-file task.md
+```
+
+On the ALPS benchmark it scored 31/31 in 657 s over 14 tool rounds, under SSD
+streaming — the slower memory mode. Cache reuse per round climbs to 99–100%
+and cuts prompt processing 18.9x, which is why a slow decode rate is not the
+obstacle it looks like for tool-driven work. Numbers in
+[bench/results/](bench/results/ds4-agent-streaming.md).
+
+Choose by who owns the agent loop, not by task size. If the caller has its
+own tools, permissions and sub-agents — Paseo, OpenCode, Claude Code — use a
+server. If you want ds4's loop, its tools and its session KV, use the agent.
+Only the servers can run several sessions at once (`--batched-session`,
+`-np`); the agent is one process, one session.
 
 ## bench/
 
 An objective harness for comparing model output: C functions graded by
-compiling and running tests, and an ALPS-to-artifacts task graded by 31 checks
-of which 10 are negative. See [bench/README.md](bench/README.md).
+compiling and running tests, an ALPS-to-artifacts task graded by 31 checks of
+which 10 are negative, and `bench/agent/` for summarising a `ds4-agent
+--trace`. See [bench/README.md](bench/README.md).
 
 ## License
 

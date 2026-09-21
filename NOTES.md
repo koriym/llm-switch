@@ -135,7 +135,7 @@ opened. I had read ds4's documentation down to its `--help` subtopics.
 Both errors pointed the same way: toward the side I had studied. Reading one
 participant's documentation and not the other's does not add noise, it adds
 bias, and the bias is invisible from the inside because each individual claim
-feels well grounded. The second one was published before it was caught.
+feels well grounded. The first one was published before it was caught.
 
 The conclusion is not that the models are good. It is that two models of this
 class, on this hardware, are close enough that a hand-built rig will produce
