@@ -155,8 +155,8 @@ need a frontier model. Two limits, observed rather than assumed: the task
 has to be a transformation rather than a discovery — both models turned ALPS
 descriptors into columns reliably, and each failed one task in five where
 the answer had to be worked out — and the scope has to be bounded, since the
-model that emitted 132 test cases unprompted scored full marks when capped
-at twenty.
+model that emitted 132 test cases unprompted scored full marks on four of
+five when capped at twenty.
 
 Differences between the two were real but small. Memory decided which to run
 daily, not quality. [NOTES.md](NOTES.md) has the numbers.
